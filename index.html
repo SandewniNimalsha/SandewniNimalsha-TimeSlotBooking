@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Marquee — Book a Slot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="marquee">
+    <h1>MARQUEE</h1>
+    <p>Pick a spot. Hold it. Make it yours — before someone else does.</p>
+  </header>
+
+  <nav class="day-rail" id="dayRail" aria-label="Choose a date" title="Booked-count badges show how full each day is"></nav>
+
+  <main class="stage">
+    <div class="category-legend">
+      <span><i class="dot" style="background:#5b7fbd"></i>Meeting</span>
+      <span><i class="dot" style="background:#7a5bbd"></i>Interview</span>
+      <span><i class="dot" style="background:#5fa777"></i>Discussion</span>
+      <span><i class="dot" style="background:#e0a63a"></i>Important Meeting</span>
+      <span><i class="dot" style="background:#bd5b8a"></i>Consultation</span>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-field">
+        <label for="filterCategory">category</label>
+        <select id="filterCategory">
+          <option value="All">All</option>
+          <option value="Meeting">Meeting</option>
+          <option value="Interview">Interview</option>
+          <option value="Discussion">Discussion</option>
+          <option value="Important Meeting">Important Meeting</option>
+          <option value="Consultation">Consultation</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label for="filterPriority">priority</label>
+        <select id="filterPriority">
+          <option value="All">All</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+      <label class="filter-toggle">
+        <input type="checkbox" id="filterOpenOnly" />
+        <span>open slots only</span>
+      </label>
+    </div>
+
+    <div class="ticket-grid" id="ticketGrid">
+      <!-- ticket stubs injected by app.js -->
+    </div>
+  </main>
+
+  <!-- Booking drawer -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <h2>Reserve this slot</h2>
+    <div class="slot-meta" id="drawerMeta">—</div>
+    <div class="hold-banner" id="holdBanner">
+      🔒 hold acquired — <span class="countdown" id="countdownText">2:00</span> to confirm
+    </div>
+
+    <form id="bookingForm">
+      <div class="field">
+        <label for="fName">name</label>
+        <input id="fName" name="name" type="text" maxlength="60" required />
+      </div>
+      <div class="field">
+        <label for="fCategory">category</label>
+        <select id="fCategory" name="category" required>
+          <option value="Meeting">Meeting</option>
+          <option value="Interview">Interview</option>
+          <option value="Discussion">Discussion</option>
+          <option value="Important Meeting">Important Meeting</option>
+          <option value="Consultation">Consultation</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fPriority">priority</label>
+        <select id="fPriority" name="priority" required>
+          <option value="Medium">Medium</option>
+          <option value="High">High</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fNote">note</label>
+        <textarea id="fNote" name="note" maxlength="200" placeholder="optional"></textarea>
+      </div>
+      <div class="form-error" id="formError"></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="confirmBtn">Confirm booking</button>
+      </div>
+    </form>
+  </aside>
+
+  <div class="log-stack" id="logStack"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

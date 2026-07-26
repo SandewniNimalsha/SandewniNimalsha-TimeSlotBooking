@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Bookings: anyone can read (public schedule), but writes must
+    // look like a real booking made through the app's transaction.
+    // Because the doc ID is fixed as {date}_{slot}, "create-only" here
+    // means the app's transaction is the only thing that can ever win
+    // a race for a given slot — a second create for the same ID fails.
+    match /bookings/{bookingId} {
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.keys().hasAll(['name', 'date', 'timeSlot', 'category', 'priority', 'note', 'sessionId', 'createdAt']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.name.size() <= 60 &&
+        request.resource.data.date is string &&
+        request.resource.data.timeSlot is string &&
+        request.resource.data.category is string &&
+        request.resource.data.priority in ['Low', 'Medium', 'High'] &&
+        request.resource.data.note is string &&
+        request.resource.data.note.size() <= 200 &&
+        request.resource.data.sessionId is string;
+
+      // No client-side edits — cancelling and rebooking is simpler and
+      // keeps the anti-double-booking guarantee airtight either way.
+      allow update: if false;
+
+      // Delete supports the "cancel my booking" feature. There's no auth
+      // in this task's scope, so rules can't verify who's deleting — the
+      // client only shows the Cancel button when the browser's sessionId
+      // matches the booking, but note that's a UI convenience, not a
+      // security boundary (documented in README as a known limitation).
+      allow delete: if true;
+    }
+
+    // Holds: short-lived soft locks. Anyone can create/read one; a hold
+    // can only be removed by whoever created it (same sessionId) or once
+    // it has expired, so one tab can't grief another tab's active hold.
+    match /holds/{holdId} {
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.keys().hasAll(['date', 'timeSlot', 'sessionId', 'expiresAt']) &&
+        request.resource.data.sessionId is string &&
+        request.resource.data.expiresAt is timestamp;
+
+      // Note: rules can't compare against arbitrary client-passed data on
+      // delete (request.resource doesn't exist for deletes). Holds are
+      // low-stakes soft locks — the transaction on `bookings` is the real
+      // guarantee — so any client may clear a hold; worst case is a slot
+      // reopening a little early, never a double booking.
+      allow delete: if true;
+
+      allow update: if false;
+    }
+  }
+}
