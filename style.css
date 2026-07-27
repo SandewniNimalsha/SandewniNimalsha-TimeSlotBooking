@@ -262,7 +262,7 @@ body {
   opacity: 0.65;
 }
 .ticket.is-booked::after {
-  content: "TORN";
+  content: "BOOKED";
   position: absolute;
   top: 40%;
   left: 50%;
