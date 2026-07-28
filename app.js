@@ -25,7 +25,7 @@ const CATEGORY_COLORS = {
 };
 
 /* ---------------- state ---------------- */
-let selectedDay = DAYS[0].value;
+let selectedDay = (DAYS.find((d) => !d.isPast) || DAYS[0]).value;
 let bookings = {};   // { "date_slot": {...} }
 let holds = {};       // { "date_slot": {...expiresAt} }
 let activeSlotKey = null; // slot currently open in the drawer
@@ -82,7 +82,9 @@ function renderDayRail() {
   DAYS.forEach((day) => {
     const count = Object.keys(bookings).filter((k) => k.startsWith(day.value + "_")).length;
     const pill = document.createElement("button");
-    pill.className = "day-pill" + (day.value === selectedDay ? " active" : "");
+    pill.className = "day-pill" +
+      (day.value === selectedDay ? " active" : "") +
+      (day.isPast ? " is-past" : "");
     pill.innerHTML = `${day.label}${count ? `<span class="day-badge">${count}</span>` : ""}`;
     pill.onclick = () => {
       selectedDay = day.value;
@@ -96,6 +98,8 @@ function renderDayRail() {
 function renderGrid() {
   const grid = document.getElementById("ticketGrid");
   grid.innerHTML = "";
+  const dayInfo = DAYS.find((d) => d.value === selectedDay);
+  const isPastDay = !!(dayInfo && dayInfo.isPast);
 
   SLOT_TIMES.forEach((slot) => {
     const key = `${selectedDay}_${slot.id}`;
@@ -113,7 +117,8 @@ function renderGrid() {
     const el = document.createElement("div");
     const isMine = booking && booking.sessionId === SESSION_ID;
     el.className = "ticket " +
-      (booking ? "is-booked" : holdActive && !holdIsMine ? "is-held" : "is-open");
+      (booking ? "is-booked" : holdActive && !holdIsMine ? "is-held" : "is-open") +
+      (isPastDay && !booking ? " is-past-open" : "");
     if (isMine) el.style.position = "relative";
 
     const catColor = booking ? CATEGORY_COLORS[booking.category] : null;
@@ -128,7 +133,9 @@ function renderGrid() {
                ${booking.priority ? `<span class="priority-tag priority-${booking.priority}">${booking.priority}</span>` : ""}`
             : holdActive && !holdIsMine
               ? "awaiting confirmation"
-              : "tap to reserve"}
+              : isPastDay
+                ? "date has passed"
+                : "tap to reserve"}
         </div>
       </div>
       <div class="tear"></div>
@@ -137,12 +144,12 @@ function renderGrid() {
           ? `<span class="status-booked">● BOOKED</span><span>${escapeHtml(booking.name)}</span>`
           : holdActive && !holdIsMine
             ? `<span class="status-held">🔒 HELD</span><span class="countdown">${formatCountdown(hold.expiresAt.toMillis())}</span>`
-            : `<span class="status-open">● OPEN</span><span></span>`
+            : `<span class="status-open">${isPastDay ? "○ PAST" : "● OPEN"}</span><span></span>`
         }
       </div>
     `;
 
-    if (!booking && !(holdActive && !holdIsMine)) {
+    if (!booking && !(holdActive && !holdIsMine) && !isPastDay) {
       el.addEventListener("click", () => openDrawer(selectedDay, slot));
     }
 
@@ -306,17 +313,31 @@ function fmtTime(h, m) {
 function pad(n) { return String(n).padStart(2, "0"); }
 
 function buildDemoDays() {
-  // Matches the recruitment task's demo window (3–6 Aug 2026) plus a
-  // couple of extra nearby days so the calendar feels alive.
-  const base = new Date(2026, 7, 3); // Aug is month index 7
+  // Anchored at Aug 2, 2026 (the day before the task's demo data starts)
+  // through 10 days past whatever "today" is. This guarantees the 5
+  // required demo bookings (Aug 3-6) stay reachable no matter which day
+  // after Aug 1 the interview actually happens on, while still rolling
+  // forward so the strip never looks stuck in the past.
+  const anchor = new Date(2026, 7, 2); // Aug 2, 2026
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = anchor < today ? anchor : today;
+  const end = new Date(today);
+  end.setDate(today.getDate() + 10);
+
   const days = [];
-  for (let i = 0; i < 6; i++) {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    const value = d.toISOString().slice(0, 10);
-    days.push({ value, label: formatDateLabel(value, true) });
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const value = toISODate(cursor);
+    const isPast = cursor < today;
+    days.push({ value, label: formatDateLabel(value, true), isPast });
+    cursor.setDate(cursor.getDate() + 1);
   }
   return days;
+}
+
+function toISODate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function formatDateLabel(iso, short) {
