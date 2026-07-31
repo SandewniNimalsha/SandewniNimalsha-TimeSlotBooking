@@ -1,41 +1,88 @@
-# Marquee — Time Slot Booking
+# Time Slot Booking
 
-A time-slot booking app styled like an old cinema ticket booth: slots are punched
-ticket stubs, booked slots visually "tear off," and a live countdown shows when a
-slot is being held by someone else mid-booking.
+A time-slot booking web app styled like an old cinema ticket booth: slots are
+punched ticket stubs, booked slots visually stamp "BOOKED," and a live
+countdown shows when a slot is being held by someone else mid-booking.
 
 ## Tech stack
-- HTML / CSS / vanilla JavaScript (ES modules, no build step)
-- Firebase Firestore — data storage + real-time sync
+- HTML / CSS / vanilla JavaScript (ES modules, no build step, no framework)
+- Firebase Firestore — data storage + real-time sync across browser tabs
 - Firebase Hosting — deployment
 
-## How duplicate/overlapping bookings are prevented
-Two layers:
+## How the website works
 
-1. **Soft lock (UX):** When you tap an open slot, a `holds/{date_slot}` document is
-   created with a 2-minute expiry. Every other open tab sees that slot flip to
-   "🔒 held" in real time via `onSnapshot`, with a live countdown — so people don't
-   even try to book something someone else is mid-filling.
-2. **Hard lock (correctness):** The soft lock is just UX — it can't fully prevent a
-   race by itself. The actual guarantee is a Firestore **transaction** on submit:
-   the booking document ID is `{date}_{slot}` and the transaction reads that doc
-   first; if it already exists, the write aborts with "already booked." Firestore
-   transactions are atomic, so even two submits at the same millisecond can't both
-   win — this is what actually makes double-booking impossible, not the countdown.
+### 1. Choosing a day
+Along the top, a horizontal row of day pills lets you pick a date. The window
+always shows Aug 2, 2026 onward through 10 days past whatever "today" actually
+is — so it stays current no matter when the app is opened, while still keeping
+the task's demo dates (Aug 3–6) reachable. Days before today appear dimmed and
+are view-only (their bookings can still be seen, but new bookings can't be
+made on a day that's already passed). The current day is highlighted in gold,
+and any day with existing bookings shows a small count badge.
+
+### 2. Viewing slots
+Selecting a day shows every 30-minute slot from 9:00 AM to 5:00 PM as a ticket
+stub. Each stub's status is shown by its color and label:
+- **● OPEN** — free to book
+- **🔒 HELD** — someone else has it open in their booking form right now, with
+  a live countdown until the hold expires
+- **● BOOKED** — already reserved; shows who booked it, their category, and
+  priority
+
+### 3. Booking a slot
+Tapping an open slot does two things:
+1. Opens a side drawer with the booking form (name, category, priority, note).
+2. Immediately creates a temporary **hold** on that slot (visible to every
+   other visitor in real time, with a 2-minute countdown), so two people can't
+   both be filling out the same slot's form without knowing it.
+
+Submitting the form runs a Firestore **transaction**: it checks one more time
+whether the slot is already booked, and only writes the booking if it isn't —
+atomically, so this check can't be beaten even if two people submit at the
+exact same instant. This transaction (not the hold/countdown, which is just a
+visual cue) is what actually guarantees no double-booking. Closing the drawer
+or letting the hold's timer run out releases the slot for others.
+
+### 4. Filtering
+A filter bar above the ticket grid lets you narrow what's shown by category,
+by priority, or toggle "open slots only." Filters only hide non-matching
+*booked* tickets — open slots always stay visible so you can keep browsing to
+book, regardless of the active filter.
+
+### 5. Cancelling a booking
+If you booked a slot from your current browser, that ticket shows a small
+"cancel" button, which deletes the booking and frees the slot again. This is
+tracked by a random ID stored in your browser's `localStorage`, not real
+login — see the note on this below.
+
+## How duplicate/overlapping bookings are prevented
+Two layers, in order of importance:
+
+1. **Hard lock (the actual guarantee):** The booking document's ID is always
+   `{date}_{slot}`. On submit, a Firestore transaction reads that document
+   first and aborts the write if it already exists. Transactions are atomic,
+   so this can't be beaten by timing, even by two submits in the same
+   millisecond.
+2. **Soft lock (UX only):** The `holds/{date_slot}` documents created while
+   someone has a slot's form open are purely a visual heads-up for other
+   users — they reduce wasted attempts, but they are not what makes
+   double-booking impossible; the transaction is.
+
+## Known limitation (worth mentioning in the interview)
+The task specifies no login system, so there's no real user authentication.
+The "cancel your own booking" feature is tracked by a random session ID in
+`localStorage`, which is a UI convenience, not a security boundary — someone
+could technically delete any booking by calling the Firestore API directly.
+This doesn't affect the core anti-double-booking guarantee, since that's
+enforced entirely by the create-transaction, independent of delete
+permissions.
 
 ## Optional features included
-- **Filter bar** — narrow visible bookings by category or priority, or toggle
-  "open slots only" to quickly see availability.
-- **Simple calendar view** — each day pill shows a live badge with how many
-  slots are booked that day.
-- **Cancel a booking** — a booking made from your browser shows a "cancel"
-  button on its ticket. Since the task specifies no login, this is tracked
-  by a random session ID stored in `localStorage`, not real authentication —
-  worth mentioning in the interview as a known limitation: the Cancel button
-  is a UI convenience, not a security boundary (anyone could delete any
-  booking via the Firestore API directly). The core requirement — preventing
-  duplicate/overlapping *bookings* — is unaffected, since that's enforced by
-  the transaction on create, not by delete permissions.
+- Filter bookings by category and priority, plus an "open slots only" toggle
+- A rolling day-selector strip that doubles as a simple calendar view, with
+  per-day booked-count badges
+- Edit/cancel: booked slots can be deleted by whoever created them (see
+  limitation above)
 
 ## Setup
 1. Create a Firebase project at https://console.firebase.google.com
@@ -48,15 +95,15 @@ Two layers:
    firebase init firestore hosting
    firebase deploy
    ```
-5. Open `index.html` (or your deployed URL) and add 5+ demo bookings from the app
-   itself, or seed them directly in the Firestore console under `bookings/`.
+5. Open `index.html` (or your deployed URL) and add 5+ demo bookings from the
+   app itself, or seed them directly in the Firestore console under
+   `bookings/`.
 
 ## File structure
 ```
-index.html        — markup
-style.css          — ticket-booth theme (tokens at top of file)
-app.js             — Firestore logic, transaction-based booking, hold countdown
+index.html         — markup
+style.css          — ticket-booth theme (design tokens at top of file)
+app.js             — Firestore logic, transaction-based booking, hold countdown, filters, rolling date window
 firebase-config.js — your Firebase project keys (fill in after setup)
-firestore.rules    — security rules (blocks direct client writes to bookings
-                      that would bypass the transaction / validation)
+firestore.rules    — security rules (validates writes, blocks bypassing the transaction-based booking flow)
 ```
